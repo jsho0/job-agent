@@ -11,20 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink, Send, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-
-const AVATAR_COLORS = [
-  "bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500",
-  "bg-rose-500", "bg-cyan-500", "bg-pink-500", "bg-teal-500",
-];
-
-function companyAvatarColor(company: string): string {
-  let hash = 0;
-  for (let i = 0; i < company.length; i++) {
-    hash = (hash << 5) - hash + company.charCodeAt(i);
-    hash |= 0;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
+import { CompanyAvatar } from "@/components/company-avatar";
 
 const STATUSES: { key: JobStatus; label: string }[] = [
   { key: "new", label: "New" },
@@ -176,12 +163,7 @@ export default function JobDetail() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0 mt-0.5",
-                    companyAvatarColor(job.company)
-                  )}>
-                    {job.company.slice(0, 2).toUpperCase()}
-                  </div>
+                  <CompanyAvatar company={job.company} size="md" className="mt-0.5" />
                   <div>
                     <CardTitle className="text-lg leading-tight">{job.title}</CardTitle>
                     <p className="text-muted-foreground mt-0.5 text-sm">{job.company}</p>

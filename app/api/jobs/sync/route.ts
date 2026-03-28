@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { url, status, title, company } = await req.json();
+  const { url, status, title, company, description } = await req.json();
   if (!url || !status) {
     return NextResponse.json({ error: "url and status required" }, { status: 400 });
   }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (title && company) {
     const { data, error } = await db
       .from("jobs")
-      .insert({ title, company, url, status: webStatus, source: "discord" })
+      .insert({ title, company, url, status: webStatus, source: "discord", description: description ?? null })
       .select()
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

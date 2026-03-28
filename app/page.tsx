@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, ExternalLink, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompanyAvatar } from "@/components/company-avatar";
 
 const STATUS_COLUMNS: { key: JobStatus; label: string }[] = [
   { key: "new", label: "New" },
@@ -20,38 +21,6 @@ const STATUS_COLUMNS: { key: JobStatus; label: string }[] = [
   { key: "rejected", label: "Rejected" },
 ];
 
-const AVATAR_COLORS = [
-  "bg-violet-500",
-  "bg-blue-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-pink-500",
-  "bg-teal-500",
-];
-
-function companyAvatarColor(company: string): string {
-  let hash = 0;
-  for (let i = 0; i < company.length; i++) {
-    hash = (hash << 5) - hash + company.charCodeAt(i);
-    hash |= 0;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function CompanyAvatar({ company }: { company: string }) {
-  return (
-    <div
-      className={cn(
-        "h-6 w-6 rounded-md flex items-center justify-center text-[9px] font-bold text-white shrink-0",
-        companyAvatarColor(company)
-      )}
-    >
-      {company.slice(0, 2).toUpperCase()}
-    </div>
-  );
-}
 
 function SkeletonCard() {
   return (
