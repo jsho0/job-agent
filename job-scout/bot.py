@@ -31,6 +31,7 @@ VENV_PYTHON = os.path.join(SCRIPT_DIR, "venv", "bin", "python")
 DB_PATH = os.path.join(SCRIPT_DIR, "jobs.db")
 INGEST_URL = os.getenv("INGEST_URL", "https://job-agent-henna.vercel.app")
 INGEST_API_KEY = os.getenv("INGEST_API_KEY")
+MEMORY_REPO_PATH = os.getenv("MEMORY_REPO_PATH")  # local clone of job-agent-memory repo
 
 STATUSES = ["applied", "phone_screen", "interview", "offer", "rejected", "withdrawn"]
 
@@ -197,6 +198,27 @@ def sync_to_web_ui(job_url, status, title="", company="", description=""):
         logging.warning(f"sync_to_web_ui error: {e}")
 
 
+def _write_rejection_to_vault(title, company, reason):
+    """Append a dismissal row to job-agent-memory repo and push. Runs in executor (non-blocking)."""
+    if not MEMORY_REPO_PATH:
+        return
+    md_path = os.path.join(MEMORY_REPO_PATH, "rejection-patterns.md")
+    if not os.path.exists(md_path):
+        logging.warning(f"Vault rejection-patterns.md not found at {md_path}")
+        return
+    try:
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        row = f"| {date} | {title} | {company} | {reason} |\n"
+        with open(md_path, "a", encoding="utf-8") as f:
+            f.write(row)
+        subprocess.run(["git", "-C", MEMORY_REPO_PATH, "add", "rejection-patterns.md"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", MEMORY_REPO_PATH, "commit", "-m", f"bot: dismissed {company} ({reason[:50]})"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", MEMORY_REPO_PATH, "push"], check=True, capture_output=True)
+        logging.info(f"Vault updated: dismissed {title} @ {company}")
+    except Exception as e:
+        logging.warning(f"Vault write failed: {e}")
+
+
 def _extract_job_info(message, channel_id):
     """Extract (job_url, title, company) from an embed or plain message."""
     # Try embeds first (job alert channel)
@@ -319,6 +341,12 @@ async def on_raw_reaction_add(payload):
             await channel.send(f"<@{payload.user_id}> Dismissed.")
             return
 
+        # Sync to web UI immediately (before asking for reason)
+        description = ""
+        if message.embeds and message.embeds[0].description:
+            description = message.embeds[0].description
+        sync_to_web_ui(job_url, "dismissed", title.strip(), company.strip(), description)
+
         # Ask for reason, store pending state
         prompt_msg = await channel.send(
             f"<@{payload.user_id}> Dismissed **{title.strip()}** at **{company.strip()}**.\n"
@@ -408,6 +436,11 @@ async def on_message(message):
         if reason:
             await message.channel.send(
                 f"Got it. Noted: \"{reason}\"\nI'll use this to improve future recommendations."
+            )
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                None,
+                lambda: _write_rejection_to_vault(pending["title"], pending["company"], reason)
             )
         else:
             await message.channel.send("Skipped. Moving on.")

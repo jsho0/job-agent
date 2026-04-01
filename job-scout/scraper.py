@@ -26,6 +26,16 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 INGEST_URL = os.getenv("INGEST_URL", "https://job-agent-henna.vercel.app/api/jobs/ingest")
 INGEST_API_KEY = os.getenv("INGEST_API_KEY")
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.db")
+MEMORY_REPO_PATH = os.getenv("MEMORY_REPO_PATH")  # local clone of job-agent-memory repo
+
+# Hard filter: job descriptions mentioning 5+ years experience.
+# Runs on the FULL description after fetch_full_job_details(), before Claude.
+EXPERIENCE_FILTER_RE = re.compile(
+    r'(?<![0-9-])([5-9]|\d{2})\+?\s*(?:to\s*\d+\s*)?years?\s*(?:of\s*)?(?:experience|exp\.?|required|minimum|min\.?)\b'
+    r'|minimum\s+(?:of\s+)?([5-9]|\d{2})\s+years?'
+    r'|(?<![0-9-])([5-9]|\d{2})\s*\+\s*(?:years?|yrs?)\b',
+    re.IGNORECASE
+)
 
 logging.basicConfig(
     filename="/var/log/jobscraper.log",
@@ -34,95 +44,21 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %I:%M:%S %p"
 )
 
-# Search terms -- kept broad, Claude handles level filtering
-SEARCH_TERMS = [
-    "Sales Development Representative",
-    "Business Development Representative",
-    "SDR tech",
-    "BDR SaaS",
-    "Sales Engineer entry level",
-    "Solutions Engineer entry level",
-    "Account Development Representative",
-    "Technical Sales Associate",
-    "Account Executive entry level",
-    "Go To Market entry level",
-]
+# Load config from scraper_config.json — edit that file to tune search terms, locations, etc.
+_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scraper_config.json")
+with open(_CONFIG_PATH) as _f:
+    _cfg = json.load(_f)
 
-INTERN_SEARCH_TERMS = [
-    "Sales intern tech",
-    "Business Development intern",
-    "Sales Engineering intern",
-    "GTM intern",
-    "Go to market intern",
-]
-
-PROMPT_ENG_SEARCH_TERMS = [
-    "Prompt Engineer",
-    "Prompt Engineer entry level",
-    "AI Engineer entry level",
-    "LLM Engineer entry level",
-    "AI Automation Engineer",
-    "Generative AI Engineer entry level",
-]
-
-COMMS_SEARCH_TERMS = [
-    "Developer Advocate entry level",
-    "Developer Relations entry level",
-    "Developer Evangelist entry level",
-    "Marketing Communications entry level tech",
-    "Community Manager tech",
-    "Content Marketing entry level SaaS",
-    "Technical Community Manager",
-]
-
-HIGH_CONVERSION_COMPANIES = [
-    "salesforce", "google", "microsoft", "amazon", "meta", "stripe",
-    "databricks", "snowflake", "okta", "hubspot", "zendesk", "twilio",
-    "box", "dropbox", "workday", "servicenow", "splunk", "crowdstrike",
-    "palo alto networks", "zscaler", "cloudflare", "hashicorp", "confluent",
-    "figma", "notion", "anthropic", "openai", "nvidia", "netflix",
-    "adobe", "intuit", "cisco", "oracle", "mongodb", "elastic",
-    "datadog", "new relic", "sigma computing",
-]
-
-LOCATIONS = [
-    "San Francisco, CA",
-    "Oakland, CA",
-    "San Jose, CA",
-    "Redwood City, CA",
-    "Menlo Park, CA",
-]
-
-WATCHLIST_COMPANIES = [
-    "netflix", "anthropic", "openai", "nvidia", "databricks", "snowflake",
-    "salesforce", "stripe", "figma", "notion", "palantir", "scale ai",
-    "cohere", "mistral", "groq", "together ai", "perplexity", "cursor",
-    "linear", "vercel", "cloudflare", "hashicorp", "confluent",
-    "sigma computing",
-]
-
-EXCLUDE_INDUSTRIES = [
-    "hospital", "clinic", "insurance", "legal",
-    "law firm", "pharmaceutical", "pharma", "dental", "therapy", "staffing",
-    "recruiting agency", "we are hiring on behalf",
-]
-
-REPOST_SIGNALS = [
-    "repost", "re-post", "reposting", "re-posting",
-    "previously posted", "originally posted", "posting again",
-    "reactivated", "re-listed", "relisted", "re-opening",
-]
-
-NONSALES_TITLES = [
-    "software engineer", "data engineer", "mechanical engineer",
-    "electrical engineer", "hardware engineer", "systems engineer",
-    "civil engineer", "structural engineer", "chemical engineer",
-    "nurse", "physician", "therapist", "dentist", "teacher",
-    "scientist", "researcher", "accountant",
-    "attorney", "paralegal", "park technician", "swim coach",
-    "manufacturing engineer", "controls engineer", "field service",
-    "penetration tester", "cybersecurity analyst",
-]
+SEARCH_TERMS = _cfg["search_terms"]
+INTERN_SEARCH_TERMS = _cfg["intern_search_terms"]
+PROMPT_ENG_SEARCH_TERMS = _cfg["prompt_eng_search_terms"]
+COMMS_SEARCH_TERMS = _cfg["comms_search_terms"]
+HIGH_CONVERSION_COMPANIES = _cfg["high_conversion_companies"]
+LOCATIONS = _cfg["locations"]
+WATCHLIST_COMPANIES = _cfg["watchlist_companies"]
+EXCLUDE_INDUSTRIES = _cfg["exclude_industries"]
+REPOST_SIGNALS = _cfg["repost_signals"]
+NONSALES_TITLES = _cfg["nonsales_titles"]
 
 
 def init_db():
@@ -204,8 +140,9 @@ def fetch_full_job_details(job_url):
                     pass
                 break
 
-        # "Reposted" appears in the raw HTML as a label even when plain text strips context
-        page_repost = bool(re.search(r"reposted", resp.text, re.IGNORECASE))
+        # LinkedIn embeds "Reposted X minutes/hours/days ago" in the page HTML for reposts.
+        # Match the specific pattern rather than any occurrence of "reposted" to avoid false positives.
+        page_repost = bool(re.search(r"reposted\s+\d+\s+(minute|hour|day|week)s?\s+ago", resp.text, re.IGNORECASE))
 
         return full_desc, applicant_count, page_repost
     except Exception as e:
@@ -276,8 +213,21 @@ def passes_or_filter(job, is_repost=False):
     if age_hours is not None and age_hours > 2:
         return False, age_hours, applicant_count
 
-    # Age truly unknown -- let Claude decide
+    # Age truly unknown -- let Claude decide, but never give reposts a free pass
+    if is_repost:
+        return False, age_hours, applicant_count
     return True, age_hours, applicant_count
+
+
+def is_repost_by_title(conn, title, company):
+    """Return True if the same title+company was seen in the last 7 days (catches URL-refreshed reposts)."""
+    row = conn.execute(
+        """SELECT 1 FROM seen_jobs
+           WHERE lower(title) = lower(?) AND lower(company) = lower(?)
+           AND date_found > datetime('now', '-7 days')""",
+        (str(title), str(company))
+    ).fetchone()
+    return row is not None
 
 
 def get_rejection_context():
@@ -300,9 +250,43 @@ def get_rejection_context():
         return ""
 
 
+def get_vault_rejection_context():
+    """Read recent rows from job-agent-memory rejection-patterns.md to supplement SQLite context."""
+    if not MEMORY_REPO_PATH:
+        return ""
+    md_path = os.path.join(MEMORY_REPO_PATH, "rejection-patterns.md")
+    if not os.path.exists(md_path):
+        return ""
+    try:
+        with open(md_path, encoding="utf-8") as f:
+            lines = f.readlines()
+        # Parse markdown table rows (skip header lines starting with | Date | or |---)
+        rows = [
+            l.strip() for l in lines
+            if l.startswith("|") and not l.startswith("| Date") and not l.startswith("|---")
+        ]
+        if not rows:
+            return ""
+        recent = rows[-20:]  # last 20 dismissals
+        parsed = []
+        for row in recent:
+            parts = [p.strip() for p in row.strip("|").split("|")]
+            if len(parts) >= 4:
+                _, title, company, reason = parts[0], parts[1], parts[2], parts[3]
+                if reason:
+                    parsed.append(f"  - {title} @ {company}: \"{reason}\"")
+        if not parsed:
+            return ""
+        return "Additional dismissals from memory vault:\n" + "\n".join(parsed)
+    except Exception:
+        return ""
+
+
 def claude_relevance_check(job):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     rejection_context = get_rejection_context()
+    vault_context = get_vault_rejection_context()
+    combined_context = "\n".join(filter(None, [rejection_context, vault_context]))
 
     prompt = f"""You are filtering job postings for Josh Sachs, a new grad CS student graduating June 2026 from UC Santa Cruz.
 
@@ -315,13 +299,13 @@ Target profile:
 - Internships: include sales/GTM/BD internships at well-known tech companies with high intern-to-FT conversion
 - Exclude: roles requiring 3+ years experience, non-English language requirements, non-tech industries
 
-{rejection_context}
+{combined_context}
 
 Job posting:
 Title: {job.get("title")}
 Company: {job.get("company")}
 Location: {job.get("location")}
-Description (first 2000 chars): {str(job.get("description") or "")[:2000]}
+Description (first 3500 chars): {str(job.get("description") or "")[:3500]}
 
 Respond with JSON only:
 {{
@@ -381,7 +365,7 @@ Job posting:
 Title: {job.get("title")}
 Company: {job.get("company")}
 Location: {job.get("location")}
-Description (first 2000 chars): {str(job.get("description") or "")[:2000]}
+Description (first 3500 chars): {str(job.get("description") or "")[:3500]}
 
 Assess whether Josh is genuinely qualified and whether this is worth applying to.
 Respond with JSON only:
@@ -443,7 +427,7 @@ Job posting:
 Title: {job.get("title")}
 Company: {job.get("company")}
 Location: {job.get("location")}
-Description (first 2000 chars): {str(job.get("description") or "")[:2000]}
+Description (first 3500 chars): {str(job.get("description") or "")[:3500]}
 
 Respond with JSON only:
 {{
@@ -598,9 +582,19 @@ def process_jobs(jobs_df, conn, is_intern=False, is_remote=False, is_prompt_eng=
         if applicant_count is not None:
             job_dict["applicants"] = applicant_count
 
+        # Hard experience filter: reject before Claude if full description contains 5+ years requirement
+        desc_text = str(job_dict.get("description") or "")
+        if desc_text and EXPERIENCE_FILTER_RE.search(desc_text):
+            logging.info(f"Experience filtered: {job_dict.get('title')} @ {job_dict.get('company')} -- 5+ years requirement found")
+            mark_seen(conn, job_url, job_dict.get("title"), job_dict.get("company"))
+            continue
+
+        title_repost = is_repost_by_title(conn, job_dict.get("title", ""), job_dict.get("company", ""))
         repost = page_repost or detect_repost(job_dict)
         if repost:
             logging.info(f"Repost detected: {job_dict.get('title')} @ {job_dict.get('company')} -- skipping freshness fast-pass")
+        elif title_repost:
+            logging.info(f"Title repost (same title+company seen in 7 days): {job_dict.get('title')} @ {job_dict.get('company')} -- noted but not hard-blocked")
 
         # OR filter
         passes, age_hours, applicant_count = passes_or_filter(job_dict, is_repost=repost)

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
   const apiKey = req.headers.get("x-api-key");

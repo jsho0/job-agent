@@ -1,0 +1,93 @@
+{
+  "search_terms": [
+    "Sales Development Representative",
+    "Business Development Representative",
+    "SDR tech",
+    "BDR SaaS",
+    "Sales Engineer entry level",
+    "Solutions Engineer entry level",
+    "Associate Solutions Engineer",
+    "Junior Solutions Engineer",
+    "Pre-Sales Engineer entry level",
+    "Solutions Architect entry level",
+    "Associate Sales Engineer",
+    "Solutions Consultant entry level",
+    "Technical Account Manager entry level",
+    "Customer Solutions Engineer",
+    "Pre-Sales Solutions Engineer",
+    "Account Development Representative",
+    "Technical Sales Associate",
+    "Account Executive entry level",
+    "Go To Market entry level"
+  ],
+  "intern_search_terms": [
+    "Sales intern tech",
+    "Business Development intern",
+    "Sales Engineering intern",
+    "Solutions Engineering intern",
+    "Pre-Sales intern",
+    "Technical Account Manager intern",
+    "GTM intern",
+    "Go to market intern"
+  ],
+  "prompt_eng_search_terms": [
+    "Prompt Engineer",
+    "Prompt Engineer entry level",
+    "AI Engineer entry level",
+    "LLM Engineer entry level",
+    "AI Automation Engineer",
+    "Generative AI Engineer entry level"
+  ],
+  "comms_search_terms": [
+    "Developer Advocate entry level",
+    "Developer Relations entry level",
+    "Developer Evangelist entry level",
+    "Marketing Communications entry level tech",
+    "Community Manager tech",
+    "Content Marketing entry level SaaS",
+    "Technical Community Manager"
+  ],
+  "locations": [
+    "San Francisco, CA",
+    "Oakland, CA",
+    "San Jose, CA",
+    "Redwood City, CA",
+    "Menlo Park, CA"
+  ],
+  "watchlist_companies": [
+    "netflix", "anthropic", "openai", "nvidia", "databricks", "snowflake",
+    "salesforce", "stripe", "figma", "notion", "palantir", "scale ai",
+    "cohere", "mistral", "groq", "together ai", "perplexity", "cursor",
+    "linear", "vercel", "cloudflare", "hashicorp", "confluent",
+    "sigma computing"
+  ],
+  "high_conversion_companies": [
+    "salesforce", "google", "microsoft", "amazon", "meta", "stripe",
+    "databricks", "snowflake", "okta", "hubspot", "zendesk", "twilio",
+    "box", "dropbox", "workday", "servicenow", "splunk", "crowdstrike",
+    "palo alto networks", "zscaler", "cloudflare", "hashicorp", "confluent",
+    "figma", "notion", "anthropic", "openai", "nvidia", "netflix",
+    "adobe", "intuit", "cisco", "oracle", "mongodb", "elastic",
+    "datadog", "new relic", "sigma computing"
+  ],
+  "exclude_industries": [
+    "hospital", "clinic", "insurance", "legal",
+    "law firm", "pharmaceutical", "pharma", "dental", "therapy", "staffing",
+    "recruiting agency", "we are hiring on behalf"
+  ],
+  "repost_signals": [
+    "repost", "re-post", "reposting", "re-posting",
+    "previously posted", "originally posted", "posting again",
+    "reactivated", "re-listed", "relisted", "re-opening"
+  ],
+  "nonsales_titles": [
+    "software engineer", "data engineer", "mechanical engineer",
+    "electrical engineer", "hardware engineer", "systems engineer",
+    "civil engineer", "structural engineer", "chemical engineer",
+    "nurse", "physician", "therapist", "dentist", "teacher",
+    "scientist", "researcher", "accountant",
+    "attorney", "paralegal", "park technician", "swim coach",
+    "manufacturing engineer", "controls engineer", "field service",
+    "penetration tester", "cybersecurity analyst"
+  ]
+}

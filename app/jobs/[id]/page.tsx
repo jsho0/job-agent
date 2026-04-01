@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase, type Job, type JobStatus, type Message } from "@/lib/supabase";
+import { type Job, type JobStatus, type Message } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,21 +74,17 @@ export default function JobDetail() {
   }, [messages]);
 
   async function fetchJob() {
-    const { data } = await supabase.from("jobs").select("*").eq("id", id).single();
-    if (data) {
+    const res = await fetch(`/api/jobs/${id}`);
+    if (res.ok) {
+      const data: Job = await res.json();
       setJob(data);
       setNotes(data.notes ?? "");
     }
   }
 
   async function loadConversation() {
-    const { data } = await supabase
-      .from("conversations")
-      .select("*")
-      .eq("job_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    const res = await fetch(`/api/conversations?job_id=${id}`);
+    const data = await res.json();
     if (data) {
       setConvId(data.id);
       setMessages(data.messages ?? []);
@@ -96,17 +92,25 @@ export default function JobDetail() {
   }
 
   async function updateStatus(status: JobStatus) {
-    await supabase.from("jobs").update({ status }).eq("id", id);
+    await fetch(`/api/jobs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
     setJob((j) => (j ? { ...j, status } : j));
   }
 
   async function saveNotes() {
-    await supabase.from("jobs").update({ notes }).eq("id", id);
+    await fetch(`/api/jobs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
   }
 
   async function deleteJob() {
     if (!confirm("Remove this job from your board?")) return;
-    await supabase.from("jobs").delete().eq("id", id);
+    await fetch(`/api/jobs/${id}`, { method: "DELETE" });
     router.push("/");
   }
 
@@ -217,17 +221,18 @@ export default function JobDetail() {
 
     const finalMessages = [...newMessages, { role: "assistant", content: full }];
     if (convId) {
-      await supabase
-        .from("conversations")
-        .update({ messages: finalMessages })
-        .eq("id", convId);
+      await fetch(`/api/conversations/${convId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: finalMessages }),
+      });
     } else {
-      const { data } = await supabase
-        .from("conversations")
-        .insert({ job_id: id, messages: finalMessages })
-        .select()
-        .single();
-      if (data) setConvId(data.id);
+      const data = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: id, messages: finalMessages }),
+      }).then((r) => r.json());
+      if (data?.id) setConvId(data.id);
     }
   }
 

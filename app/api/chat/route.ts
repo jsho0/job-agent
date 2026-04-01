@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase-server";
 import { buildSystemPrompt, buildInterviewPrepPrompt, anthropic } from "@/lib/claude";
 import type { Message } from "@/lib/supabase";
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase, type Job, type JobStatus } from "@/lib/supabase";
+import { type Job, type JobStatus } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,11 +67,8 @@ export default function JobBoard() {
   }, []);
 
   async function fetchJobs() {
-    const { data } = await supabase
-      .from("jobs")
-      .select("*")
-      .order("created_at", { ascending: false });
-    setJobs(data ?? []);
+    const data = await fetch("/api/jobs").then((r) => r.json());
+    setJobs(Array.isArray(data) ? data : []);
     setLoading(false);
   }
 
@@ -93,7 +90,7 @@ export default function JobBoard() {
   }
 
   async function deleteJob(id: string) {
-    await supabase.from("jobs").delete().eq("id", id);
+    await fetch(`/api/jobs/${id}`, { method: "DELETE" });
     setJobs((prev) => prev.filter((j) => j.id !== id));
   }
 
@@ -101,9 +98,13 @@ export default function JobBoard() {
     if (!newJob.title || !newJob.company || adding) return;
     setAdding(true);
     setAddError(null);
-    const { error } = await supabase.from("jobs").insert({ ...newJob, status: "new" });
+    const res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newJob),
+    });
     setAdding(false);
-    if (error) {
+    if (!res.ok) {
       setAddError("Failed to add job. Check your database connection.");
       return;
     }

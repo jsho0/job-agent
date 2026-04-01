@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase-server";
 
 // Maps Discord bot statuses → web UI statuses
 const STATUS_MAP: Record<string, string> = {
